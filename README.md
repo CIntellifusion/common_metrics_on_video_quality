@@ -1,4 +1,27 @@
 # common_metrics_on_video_quality
+## Add new metrics: 
+
+1. implement it ref to calculate_fvd name it as calculate_xxx.py 
+2. if lib is needed, place it under xxx
+3. alway remind the value range and shape issues. 
+
+## News
+
+### revisiting_errorm 2025.06.12 
+new metrics added [revisiting_error]:
+follow worldmem sec 4.4.
+
+requried dataset format: 
+
+a path to a folder where the video that the first frame and the last frame should be the same. 
+
+to run the revisiting error evaluation: 
+
+```
+python calculate_revisiting_error.py --folder "path to folder" 
+```
+
+
 
 ## Introduction 
 
