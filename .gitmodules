@@ -1,0 +1,4 @@
+
+[submodule "reprojection_error/DROID-SLAM"]
+	path = reprojection_error/DROID-SLAM
+	url = https://github.com/princeton-vl/DROID-SLAM.git
