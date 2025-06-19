@@ -13,8 +13,8 @@ pip install evo --upgrade --no-binary evo
 pip install gdown
 
 # install droid-backend
-git submodule update --init reprojection_error/DROID-SLAM --recursive 
-cd reprojection_error/Droid-SLAM
+git submodule update --init --recursive 
+cd reprojection_error/DROID-SLAM
 python setup.py install
 cd ../..
 ```

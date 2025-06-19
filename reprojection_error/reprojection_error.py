@@ -1,5 +1,7 @@
+import os
 import sys
-sys.path.append('reprojection_error/droid_slam')
+SCRIPTS_DIR = os.path.dirname(__file__)
+sys.path.append(os.path.join(SCRIPTS_DIR, 'droid_slam'))
 
 from pathlib import Path
 from typing import List
@@ -75,7 +77,7 @@ class ReprojectionErrorMetric():
         args = {
             "t0": 0,
             "stride": 1,
-            "weights": "reprojection_error/checkpoints/droid.pth",
+            "weights": os.path.join(SCRIPTS_DIR, 'checkpoints', 'droid.pth'),
             "buffer": 512,
             "beta": 0.3,
             "filter_thresh": 0.01,
