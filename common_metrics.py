@@ -3,7 +3,7 @@ import os
 sys.path.append(os.getcwd())
 from common_metrics_on_video_quality.calculate_fvd import calculate_fvd
 from common_metrics_on_video_quality.calculate_lpips import calculate_lpips
-from common_metrics_on_video_quality.calculate_ssim import calculate_ssim
+from common_metrics_on_video_quality.calculate_ssim import calculate_ssim_parallel
 from common_metrics_on_video_quality.calculate_psnr import calculate_psnr
 import os
 import cv2
@@ -12,14 +12,21 @@ import numpy as np
 import argparse
 import json
 device = torch.device("cuda")
+import glob 
 # device = torch.device("cpu")
 # test code / using example
 
-def load_videos_to_tensor(video_dir, number_of_videos, video_length, channel, size,video_files=None):
+def load_videos_to_tensor(video_dir, number_of_videos, video_length, channel, size,video_files=None,sort_function=None):
     videos_tensor = torch.zeros(number_of_videos, video_length, channel, size[0], size[1], requires_grad=False)
     if video_files is None:
-        video_files = [f for f in os.listdir(video_dir) if f.endswith(('.mp4'))]
-    video_files = sorted(video_files, key=lambda x: int(x.split("_")[-1].split(".")[0]))
+        # video_files = [f for f in os.listdir(video_dir) if f.endswith(('.mp4'))]
+        # improve to recursively find all video files in the directory use glob
+        video_files = glob.glob(os.path.join(video_dir, "**/*.mp4"), recursive=True)
+        # import pdb; pdb.set_trace()
+        print("Found {} video files in {}".format(len(video_files), video_dir))
+    
+    video_files = sorted(video_files, key=sort_function)
+    
     video_files = video_files[:number_of_videos]
     for i, video_file in enumerate(video_files):
         video_path = os.path.join(video_dir, video_file)
@@ -60,29 +67,34 @@ def load_videos_to_tensor(video_dir, number_of_videos, video_length, channel, si
 # python scripts/tvideo/mc/common_metrics.py --video_dir1 metrics_table_1/oasis/oasis_official_results_no_demo_1gen15_mineworld_curation --video_dir2 metrics_table_1/frame_16_curation --video_length 15 --channel 3 --size "(224,384)" --output-file test_metrics.json 
 def main():
     parser = argparse.ArgumentParser(description="Calculate FVD for two sets of videos.")
-    parser.add_argument("--video_dir1", type=str, required=True, help="Path to the first directory containing videos.")
-    parser.add_argument("--video_dir2", type=str, required=True, help="Path to the second directory containing videos.")
-    parser.add_argument("--video_length", type=int, default=32, help="Number of frames to retain from each video.")
+    parser.add_argument("--video-dir1", type=str, required=True, help="Path to the first directory containing videos.")
+    parser.add_argument("--video-dir2", type=str, required=True, help="Path to the second directory containing videos.")
+    parser.add_argument("--video-length", type=int, default=32, help="Number of frames to retain from each video.")
     parser.add_argument("--channel", type=int, default=3, help="Number of channels in the videos (default: 3 for RGB).")
     parser.add_argument("--size", type=str, default="(224,384)", help="Size of the video frames (default: 256x256).")
+    parser.add_argument("--max-videos", type=int, default=100, help="Maximum number of videos to process from each directory.")
     parser.add_argument("--output-file", type=str)
     args = parser.parse_args()
     args.size = eval(args.size)
     print("args.size", args.size)
     number_of_videos = len([f for f in os.listdir(args.video_dir1) if f.endswith(".mp4")])
-    video_files = [f for f in os.listdir(args.video_dir1) if f.endswith(('.mp4'))]
-    number_of_videos = min(500,len(video_files))
+    # video_files = [f for f in os.listdir(args.video_dir1) if f.endswith(('.mp4'))]
+    video_files = glob.glob(os.path.join(args.video_dir1, "**/*.mp4"), recursive=True)
+    video_files = [os.path.relpath(f, args.video_dir1) for f in video_files]
+    number_of_videos = min(args.max_videos,len(video_files))
     print("number_of_videos", number_of_videos)
-    videos1 = load_videos_to_tensor(args.video_dir1, number_of_videos, args.video_length, args.channel, args.size, video_files)
-    videos2 = load_videos_to_tensor(args.video_dir2, number_of_videos, args.video_length, args.channel, args.size, video_files)
+    sort_fn = lambda x: int(x.split("_")[-1].split(".")[0]) 
+    sort_fn = lambda x: x
+    videos1 = load_videos_to_tensor(args.video_dir1, number_of_videos, args.video_length, args.channel, args.size, video_files,sort_function=sort_fn)
+    videos2 = load_videos_to_tensor(args.video_dir2, number_of_videos, args.video_length, args.channel, args.size, video_files,sort_function=sort_fn)
     print("videos1.shape", videos1.shape, "videos2.shape", videos2.shape)
     device = torch.device("cuda")
 
     print(args.output_file)
     result = {}
-    result['fvd'] = calculate_fvd(videos1, videos2, device, method='styleganv')
+    result['fvd'] = calculate_fvd(videos1, videos2, device, method='styleganv',only_final=True)
     # result['fvd'] = calculate_fvd(videos1, videos2, device, method='videogpt')
-    result['ssim'] = calculate_ssim(videos1, videos2)
+    result['ssim'] = calculate_ssim_parallel(videos1, videos2)
     result['psnr'] = calculate_psnr(videos1, videos2)
     result['lpips'] = calculate_lpips(videos1, videos2, device)
     lpips_mean =  np.mean(list(result['lpips']['value']))

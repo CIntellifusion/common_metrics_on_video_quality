@@ -1,8 +1,9 @@
 import numpy as np
 import torch
-from tqdm import tqdm
+from tqdm import tqdm,trange
 import cv2
- 
+import multiprocessing as mp
+
 def ssim(img1, img2):
     C1 = 0.01 ** 2
     C2 = 0.03 ** 2
@@ -97,6 +98,59 @@ def calculate_ssim(videos1, videos2, only_final=False):
     }
 
     return result
+def process_single_video(args):
+    video_num, video1, video2 = args
+    ssim_results_of_a_video = []
+    for clip_timestamp in trange(len(video1),leave=False, desc=f"Video {video_num}"):
+        img1 = video1[clip_timestamp].numpy()
+        img2 = video2[clip_timestamp].numpy()
+        ssim_results_of_a_video.append(calculate_ssim_function(img1, img2))
+    return ssim_results_of_a_video
+def calculate_ssim_parallel(videos1, videos2, only_final=False):
+    print("calculate_ssim in parallel...")
+
+    # videos [batch_size, timestamps, channel, h, w]
+    
+    assert videos1.shape == videos2.shape
+
+    videos1 = trans(videos1)
+    videos2 = trans(videos2)
+
+    ssim_results = []
+  
+
+    # 准备参数
+    video_args = [(i, videos1[i], videos2[i]) for i in range(videos1.shape[0])]
+
+    # 使用多进程并行处理
+    with mp.Pool(processes=32) as pool:
+        ssim_results = list(tqdm(pool.imap(process_single_video, video_args), 
+                                total=len(video_args), 
+                                desc="Processing videos"))
+
+
+    ssim_results = np.array(ssim_results)
+
+    ssim = []
+    ssim_std = []
+
+    if only_final:
+
+        ssim.append(np.mean(ssim_results))
+        ssim_std.append(np.std(ssim_results))
+
+    else:
+
+        for clip_timestamp in range(len(videos1[0])):
+            ssim.append(np.mean(ssim_results[:,clip_timestamp]))
+            ssim_std.append(np.std(ssim_results[:,clip_timestamp]))
+
+    result = {
+        "value": ssim,
+        "value_std": ssim_std,
+    }
+
+    return result
 
 # test code / using example
 
@@ -105,12 +159,17 @@ def main():
     VIDEO_LENGTH = 30
     CHANNEL = 3
     SIZE = 64
-    videos1 = torch.zeros(NUMBER_OF_VIDEOS, VIDEO_LENGTH, CHANNEL, SIZE, SIZE, requires_grad=False)
-    videos2 = torch.ones(NUMBER_OF_VIDEOS, VIDEO_LENGTH, CHANNEL, SIZE, SIZE, requires_grad=False)
+    videos1 = torch.rand(NUMBER_OF_VIDEOS, VIDEO_LENGTH, CHANNEL, SIZE, SIZE, requires_grad=False)
+    videos2 = torch.rand(NUMBER_OF_VIDEOS, VIDEO_LENGTH, CHANNEL, SIZE, SIZE, requires_grad=False)
 
     result = calculate_ssim(videos1, videos2)
+    result_parallel = calculate_ssim_parallel(videos1, videos2)
+    print("Eq: ", np.allclose(np.array(result["value"]), np.array(result_parallel["value"])))
+    print("Eq: ", np.allclose(np.array(result["value_std"]), np.array(result_parallel["value_std"])))
     print("[ssim avg]", result["value"])
     print("[ssim std]", result["value_std"])
+    print("[ssim_parallel avg]", result_parallel["value"])
+    print("[ssim_parallel std]", result_parallel["value_std"])
 
 if __name__ == "__main__":
     main()

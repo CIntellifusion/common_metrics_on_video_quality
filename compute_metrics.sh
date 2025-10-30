@@ -11,7 +11,7 @@ for video_dir1 in "$VIDEO_RESULTS_ROOT"/*/; do
         fvd_output_file="$METRICS_ROOT/$(basename "$video_dir1").json"
         echo $fvd_output_file
         # Run the python command for each video directory
-        python common_metrics.py --video_dir2 $JSONL_PATH --video_length 15 --channel 3 --size "(224,384)" \
-                --video_dir1 "$video_dir1" --output-file "$fvd_output_file"
+        python common_metrics.py --video-dir2 $JSONL_PATH --video-length 15 --channel 3 --size "(224,384)" \
+                --video-dir1 "$video_dir1" --output-file "$fvd_output_file"
     fi
 done
