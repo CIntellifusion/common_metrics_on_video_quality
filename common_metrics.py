@@ -13,8 +13,7 @@ import argparse
 import json
 device = torch.device("cuda")
 import glob 
-# device = torch.device("cpu")
-# test code / using example
+
 
 def load_videos_to_tensor(video_dir, number_of_videos, video_length, channel, size,video_files=None,sort_function=None):
     videos_tensor = torch.zeros(number_of_videos, video_length, channel, size[0], size[1], requires_grad=False)
@@ -64,50 +63,63 @@ def load_videos_to_tensor(video_dir, number_of_videos, video_length, channel, si
 
     return videos_tensor
 
-# python scripts/tvideo/mc/common_metrics.py --video_dir1 metrics_table_1/oasis/oasis_official_results_no_demo_1gen15_mineworld_curation --video_dir2 metrics_table_1/frame_16_curation --video_length 15 --channel 3 --size "(224,384)" --output-file test_metrics.json 
+"""
+Example usage:
+python common_metrics.py --video-dir1 /home/wuhaoyu/research/ItTakesTwoSimulator/outputs/i2v-causalactionv2norm-bs64-1e-4-fs1-320Phqv2.3-20260121/eval/videos/step-1000-videos/gen  --video-dir2 /home/wuhaoyu/research/ItTakesTwoSimulator/outputs/i2v-causalactionv2norm-bs64-1e-4-fs1-320Phqv2.3-20260121/eval/videos/step-1000-videos/gt --video-length 81 --channel 3 --size "(480,960)" --output-file test_metrics.json --max-videos 200
+"""
+
 def main():
-    parser = argparse.ArgumentParser(description="Calculate FVD for two sets of videos.")
+    parser = argparse.ArgumentParser(description="Calculate video metrics (FVD, SSIM, PSNR, LPIPS).")
     parser.add_argument("--video-dir1", type=str, required=True, help="Path to the first directory containing videos.")
     parser.add_argument("--video-dir2", type=str, required=True, help="Path to the second directory containing videos.")
     parser.add_argument("--video-length", type=int, default=32, help="Number of frames to retain from each video.")
     parser.add_argument("--channel", type=int, default=3, help="Number of channels in the videos (default: 3 for RGB).")
-    parser.add_argument("--size", type=str, default="(224,384)", help="Size of the video frames (default: 256x256).")
+    parser.add_argument("--size", type=str, default="(224,384)", help="Size of the video frames (default: (224,384)).")
     parser.add_argument("--max-videos", type=int, default=100, help="Maximum number of videos to process from each directory.")
-    parser.add_argument("--output-file", type=str)
+    parser.add_argument("--output-file", type=str, required=True, help="Path to save the evaluation results JSON.")
     args = parser.parse_args()
+    
     args.size = eval(args.size)
-    print("args.size", args.size)
-    number_of_videos = len([f for f in os.listdir(args.video_dir1) if f.endswith(".mp4")])
-    # video_files = [f for f in os.listdir(args.video_dir1) if f.endswith(('.mp4'))]
+    print(f"Target: {args.size}, {args.channel} channels, {args.video_length} frames")
+    
     video_files = glob.glob(os.path.join(args.video_dir1, "**/*.mp4"), recursive=True)
     video_files = [os.path.relpath(f, args.video_dir1) for f in video_files]
-    number_of_videos = min(args.max_videos,len(video_files))
-    print("number_of_videos", number_of_videos)
-    sort_fn = lambda x: int(x.split("_")[-1].split(".")[0]) 
+    number_of_videos = min(args.max_videos, len(video_files))
+    print(f"Number of videos: {number_of_videos}")
+    
     sort_fn = lambda x: x
-    videos1 = load_videos_to_tensor(args.video_dir1, number_of_videos, args.video_length, args.channel, args.size, video_files,sort_function=sort_fn)
-    videos2 = load_videos_to_tensor(args.video_dir2, number_of_videos, args.video_length, args.channel, args.size, video_files,sort_function=sort_fn)
-    print("videos1.shape", videos1.shape, "videos2.shape", videos2.shape)
+    videos1 = load_videos_to_tensor(args.video_dir1, number_of_videos, args.video_length, args.channel, args.size, video_files, sort_function=sort_fn)
+    videos2 = load_videos_to_tensor(args.video_dir2, number_of_videos, args.video_length, args.channel, args.size, video_files, sort_function=sort_fn)
+    print(f"videos1: {videos1.shape}, videos2: {videos2.shape}")
+    
     device = torch.device("cuda")
-
-    print(args.output_file)
+    print(f"Output: {args.output_file}")
+    
     result = {}
-    result['fvd'] = calculate_fvd(videos1, videos2, device, method='styleganv',only_final=True)
-    # result['fvd'] = calculate_fvd(videos1, videos2, device, method='videogpt')
+    result['fvd'] = calculate_fvd(videos1, videos2, device, method='styleganv', only_final=True)
+    fvd_mean = result['fvd']['overall_average']
+    print(f"FVD: {fvd_mean}")
+    
     result['ssim'] = calculate_ssim_parallel(videos1, videos2)
+    ssim_mean = result['ssim']['overall_average']
+    print(f"SSIM: {ssim_mean}")
+    
     result['psnr'] = calculate_psnr(videos1, videos2)
+    psnr_mean = result['psnr']['overall_average']
+    print(f"PSNR: {psnr_mean}")
+    
     result['lpips'] = calculate_lpips(videos1, videos2, device)
-    lpips_mean =  np.mean(list(result['lpips']['value']))
-    ssim_mean =  np.mean(list(result['ssim']['value']))
-    psnr_mean =  np.mean(list(result['psnr']['value']))
-    fvd_mean =  np.mean(list(result['fvd']['value']))
-    data_item = {"exp_name":args.video_dir1, "fvd":fvd_mean, "lpips":lpips_mean, "ssim":ssim_mean, "psnr":psnr_mean}
+    lpips_mean = result['lpips']['overall_average']
+    print(f"LPIPS: {lpips_mean}")
+    
+    data_item = {"exp_name": args.video_dir1, "fvd": fvd_mean, "lpips": lpips_mean, "ssim": ssim_mean, "psnr": psnr_mean}
     print(data_item)
+    
     os.makedirs(os.path.dirname(args.output_file), exist_ok=True)
-    result['mean'] = data_item
+    result['result'] = data_item
     with open(args.output_file, "w") as f:
         json.dump(result, f, indent=4)
-    print("results saved to ", args.output_file)
-    # print(json.dumps(result, indent=4))
+    print(f"Results saved to {args.output_file}")
+    
 if __name__ == "__main__":
     main()
