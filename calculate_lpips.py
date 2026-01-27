@@ -79,6 +79,7 @@ def calculate_lpips(videos1, videos2, device, only_final=False):
             lpips_std.append(np.std(lpips_results[:,clip_timestamp]))
 
     result = {
+        "overall_average": np.mean(lpips),
         "value": lpips,
         "value_std": lpips_std,
     }

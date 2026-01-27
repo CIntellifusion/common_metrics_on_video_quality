@@ -146,6 +146,7 @@ def calculate_ssim_parallel(videos1, videos2, only_final=False):
             ssim_std.append(np.std(ssim_results[:,clip_timestamp]))
 
     result = {
+        "overall_average": np.mean(ssim),
         "value": ssim,
         "value_std": ssim_std,
     }

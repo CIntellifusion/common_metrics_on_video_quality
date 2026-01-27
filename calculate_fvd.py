@@ -74,6 +74,7 @@ def calculate_fvd(videos1, videos2, device, method='styleganv', only_final=False
             fvd_results.append(frechet_distance(feats1, feats2))
 
     result = {
+        "overall_average": np.mean(fvd_results),
         "value": fvd_results,
     }
 

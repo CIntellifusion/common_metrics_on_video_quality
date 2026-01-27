@@ -66,6 +66,7 @@ def calculate_psnr(videos1, videos2, only_final=False):
             psnr_std.append(np.std(psnr_results[:,clip_timestamp]))
 
     result = {
+        "overall_average": np.mean(psnr),
         "value": psnr,
         "value_std": psnr_std,
     }
